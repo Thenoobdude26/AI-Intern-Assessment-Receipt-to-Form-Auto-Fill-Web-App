@@ -1,6 +1,6 @@
 const express = require("express");
 const multer = require("multer");
-const OpenAI = require("openai");
+const Anthropic = require("@anthropic-ai/sdk");
 const path = require("path");
 const {
   normalizeReceiptFields,
@@ -22,17 +22,18 @@ const upload = multer({
   },
 });
 
-const openaiApiKey = process.env.OPENAI_API_KEY;
-const openaiModel = process.env.OPENAI_MODEL || "gpt-4o-mini";
-const openai = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null;
+const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+const anthropic = anthropicApiKey
+  ? new Anthropic({ apiKey: anthropicApiKey })
+  : null;
 
 app.use(express.static(path.join(__dirname, "public")));
 
 app.post("/api/extract", upload.single("receipt"), async (req, res) => {
-  if (!openai) {
+  if (!anthropic) {
     res.status(500).json({
       error:
-        "Missing OPENAI_API_KEY. Set it in your environment before extracting receipt data.",
+        "Missing ANTHROPIC_API_KEY. Set it in your environment before extracting receipt data.",
     });
     return;
   }
@@ -43,37 +44,44 @@ app.post("/api/extract", upload.single("receipt"), async (req, res) => {
   }
 
   try {
-    const imageDataUri = `data:${req.file.mimetype};base64,${req.file.buffer.toString(
-      "base64"
-    )}`;
+    const base64Image = req.file.buffer.toString("base64");
+    const mediaType = req.file.mimetype;
 
-    const completion = await openai.chat.completions.create({
-      model: openaiModel,
-      temperature: 0,
-      response_format: { type: "json_object" },
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1024,
       messages: [
-        {
-          role: "system",
-          content:
-            "Extract receipt fields and return JSON only with keys merchant_name, date, total_amount, currency.",
-        },
         {
           role: "user",
           content: [
             {
-              type: "text",
-              text: "Extract merchant name, date, total amount, and currency from this receipt image.",
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: mediaType,
+                data: base64Image,
+              },
             },
             {
-              type: "image_url",
-              image_url: { url: imageDataUri },
+              type: "text",
+              text: `Extract receipt fields from this image and return ONLY a valid JSON object with no markdown, no explanation, no backticks.
+
+Return exactly this shape:
+{"merchant_name":"...","date":"YYYY-MM-DD","total_amount":0.00,"currency":"USD"}
+
+Rules:
+- date must be ISO 8601 (YYYY-MM-DD) or null if not found
+- total_amount must be a number (float) or null if not found  
+- currency must be a 3-letter ISO code (USD, MYR, GBP, etc.) inferred from symbols or context
+- merchant_name is the store or business name`,
             },
           ],
         },
       ],
     });
 
-    const text = completion.choices?.[0]?.message?.content || "{}";
+    const text =
+      message.content.find((b) => b.type === "text")?.text || "{}";
     const parsed = extractJsonContent(text);
     res.json({ fields: normalizeReceiptFields(parsed) });
   } catch (error) {
