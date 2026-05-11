@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Receipt to Form Auto Fill</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Receipt to Form Auto Fill</h1>
+      <p>Upload a receipt image and extract merchant, date, amount, and currency with AI.</p>
+
+      <section class="card">
+        <h2>1) Upload Receipt</h2>
+        <form id="upload-form">
+          <input id="receipt-image" name="receipt" type="file" accept="image/*" required />
+          <button type="submit">Extract Fields</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>2) Review & Edit</h2>
+        <form id="receipt-form">
+          <label>
+            Merchant name
+            <input id="merchantName" name="merchantName" type="text" required />
+          </label>
+          <label>
+            Date
+            <input id="date" name="date" type="text" placeholder="YYYY-MM-DD" required />
+          </label>
+          <label>
+            Total amount
+            <input id="totalAmount" name="totalAmount" type="text" required />
+          </label>
+          <label>
+            Currency
+            <input id="currency" name="currency" type="text" maxlength="10" required />
+          </label>
+          <button type="submit">Submit Extracted Data</button>
+        </form>
+      </section>
+
+      <p id="status" aria-live="polite"></p>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,27 @@
+{
+  "name": "ai-intern-assessment-receipt-to-form-auto-fill-web-app",
+  "version": "1.0.0",
+  "description": "Objective Build and deploy a simple web app that extracts information from a receipt using generative AI and auto-fills a form with the results.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Thenoobdude26/AI-Intern-Assessment-Receipt-to-Form-Auto-Fill-Web-App.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Thenoobdude26/AI-Intern-Assessment-Receipt-to-Form-Auto-Fill-Web-App/issues"
+  },
+  "homepage": "https://github.com/Thenoobdude26/AI-Intern-Assessment-Receipt-to-Form-Auto-Fill-Web-App#readme",
+  "dependencies": {
+    "express": "^5.2.1",
+    "multer": "^2.1.1",
+    "openai": "^6.37.0"
+  }
+}
