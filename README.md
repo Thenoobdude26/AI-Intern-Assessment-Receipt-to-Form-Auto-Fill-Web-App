@@ -1,29 +1,121 @@
-# AI-Intern-Assessment-Receipt-to-Form-Auto-Fill-Web-App
-Objective Build and deploy a simple web app that extracts information from a receipt using generative AI and auto-fills a form with the results.
+# Receipt to Form Auto-Fill
 
-## Run locally
+Upload a receipt image, let AI extract the data, review it, and submit it to a database. simple web app.
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Export your OpenAI API key:
-   ```bash
-   export OPENAI_API_KEY=your_api_key_here
-   ```
-3. Start the app:
-   ```bash
-   npm start
-   ```
-4. Open `http://localhost:3000`.
+**Live demo:** https://ai-intern-assessment-receipt-to-for.vercel.app/
 
-## Implemented requirements
+---
 
-- Upload receipt image from browser
-- Extract fields using generative AI (OpenAI GPT model)
-- Pre-fill editable form with extracted fields:
-  - Merchant name
-  - Date
-  - Total amount
-  - Currency
-- Submit edited data (saved in browser local storage)
+## What it does
+
+1. Upload a receipt image (JPG, PNG, WEBP)
+2. AI extracts merchant name, date, total amount, and currency
+3. Fields are auto-filled into an editable form
+4. Submit saves the data to a Postgres database
+
+---
+
+## Stack
+
+| Layer | Tech |
+|---|---|
+| Frontend | Vanilla HTML, CSS, JS |
+| Backend | Node.js + Express |
+| AI | Groq API (Llama 4 Scout) — vision model |
+| Database | Supabase (Postgres) |
+| Hosting | Vercel |
+
+---
+
+## Project structure
+
+```
+├── public/
+│   ├── index.html        # UI
+│   ├── app.js            # Frontend logic
+│   └── style.css         # Styles
+├── server.js             # Express server, API routes
+├── vercel.json           # Vercel deployment config
+└── package.json
+```
+
+---
+
+## API routes
+
+### `POST /api/extract`
+Accepts a multipart form upload (`receipt` field), sends the image to Groq, returns extracted fields.
+
+**Response:**
+```json
+{
+  "fields": {
+    "merchantName": "Walmart",
+    "date": "2011-11-06",
+    "totalAmount": "46.30",
+    "currency": "USD"
+  }
+}
+```
+
+### `POST /api/submit`
+Accepts JSON body, inserts a row into the `extracted_data` table in Supabase.
+
+**Body:**
+```json
+{
+  "merchantName": "Walmart",
+  "date": "2011-11-06",
+  "totalAmount": "46.30",
+  "currency": "USD"
+}
+```
+
+---
+
+## Database schema
+
+```sql
+create table public.extracted_data (
+  id uuid not null default gen_random_uuid (),
+  merchant_name text null,
+  date date null,
+  total_amount real null,
+  currency text null,
+  submitted_at timestamp with time zone null default now(),
+  constraint extracted_data_pkey primary key (id)
+) TABLESPACE pg_default;
+```
+
+---
+
+## Running locally
+
+**1. Clone and install**
+```bash
+git clone https://github.com/yourusername/AI-Intern-Assessment-Receipt-to-Form-Auto-Fill-Web-App
+cd AI-Intern-Assessment-Receipt-to-Form-Auto-Fill-Web-App
+npm install
+```
+
+**2. Set up environment variables**
+```bash
+cp .env.example .env
+```
+
+Fill in `.env`:
+```
+GROQ_API_KEY=groq_api_key
+DATABASE_URL=supabase_connection_pooler_url
+```
+
+- Groq API key: [console.groq.com](https://console.groq.com) — free
+- Supabase connection string
+
+**3. Run**
+```bash
+node server.js
+# http://localhost:3000
+```
+
+---
