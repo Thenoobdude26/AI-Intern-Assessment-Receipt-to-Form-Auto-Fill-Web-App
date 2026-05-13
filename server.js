@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
 const path = require("path");
+const { Pool } = require("pg");
 const {
   normalizeReceiptFields,
   extractJsonContent,
@@ -9,6 +10,11 @@ const {
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -25,15 +31,13 @@ const upload = multer({
 const groqApiKey = process.env.GROQ_API_KEY;
 
 app.use(express.static(path.join(__dirname, "public")));
+app.use(express.json());
 
 app.post("/api/extract", upload.single("receipt"), async (req, res) => {
   if (!groqApiKey) {
-    res.status(500).json({
-      error: "Missing GROQ_API_KEY. Set it in your environment.",
-    });
+    res.status(500).json({ error: "Missing GROQ_API_KEY." });
     return;
   }
-
   if (!req.file) {
     res.status(400).json({ error: "Please upload a receipt image file." });
     return;
@@ -69,14 +73,9 @@ Rules:
             content: [
               {
                 type: "image_url",
-                image_url: {
-                  url: `data:${mimeType};base64,${base64Image}`,
-                },
+                image_url: { url: `data:${mimeType};base64,${base64Image}` },
               },
-              {
-                type: "text",
-                text: prompt,
-              },
+              { type: "text", text: prompt },
             ],
           },
         ],
@@ -93,9 +92,27 @@ Rules:
     const parsed = extractJsonContent(text);
     res.json({ fields: normalizeReceiptFields(parsed) });
   } catch (error) {
-    res.status(500).json({
-      error: error.message || "Failed to extract receipt fields.",
-    });
+    res.status(500).json({ error: error.message || "Failed to extract receipt fields." });
+  }
+});
+
+app.post("/api/submit", async (req, res) => {
+  const { merchantName, date, totalAmount, currency } = req.body;
+
+  if (!merchantName) {
+    res.status(400).json({ error: "Merchant name is required." });
+    return;
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO extracted_data (merchant_name, date, total_amount, currency)
+       VALUES ($1, $2, $3, $4)`,
+      [merchantName, date || null, totalAmount || null, currency || null]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message || "Failed to save submission." });
   }
 });
 

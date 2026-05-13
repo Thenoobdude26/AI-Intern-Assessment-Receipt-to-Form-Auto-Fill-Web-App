@@ -32,11 +32,7 @@ uploadForm.addEventListener("submit", async (event) => {
       body: formData,
     });
     const payload = await response.json();
-
-    if (!response.ok) {
-      throw new Error(payload.error || "Extraction failed.");
-    }
-
+    if (!response.ok) throw new Error(payload.error || "Extraction failed.");
     populateForm(payload.fields);
     setStatus("Fields extracted. Review and edit before submitting.");
   } catch (error) {
@@ -44,11 +40,21 @@ uploadForm.addEventListener("submit", async (event) => {
   }
 });
 
-receiptForm.addEventListener("submit", (event) => {
+receiptForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(receiptForm).entries());
-  const existing = JSON.parse(localStorage.getItem("receiptSubmissions") || "[]");
-  existing.push({ ...data, submittedAt: new Date().toISOString() });
-  localStorage.setItem("receiptSubmissions", JSON.stringify(existing));
-  setStatus("Submitted successfully. Data saved in local storage.");
+  setStatus("Saving...");
+
+  try {
+    const response = await fetch("/api/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || "Submission failed.");
+    setStatus("Submitted successfully. Data saved to database.");
+  } catch (error) {
+    setStatus(error.message || "Submission failed.", true);
+  }
 });
