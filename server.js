@@ -1,6 +1,5 @@
 const express = require("express");
 const multer = require("multer");
-const Anthropic = require("@anthropic-ai/sdk");
 const path = require("path");
 const {
   normalizeReceiptFields,
@@ -22,18 +21,14 @@ const upload = multer({
   },
 });
 
-const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-const anthropic = anthropicApiKey
-  ? new Anthropic({ apiKey: anthropicApiKey })
-  : null;
+const geminiApiKey = process.env.GEMINI_API_KEY;
 
 app.use(express.static(path.join(__dirname, "public")));
 
 app.post("/api/extract", upload.single("receipt"), async (req, res) => {
-  if (!anthropic) {
+  if (!geminiApiKey) {
     res.status(500).json({
-      error:
-        "Missing ANTHROPIC_API_KEY. Set it in your environment before extracting receipt data.",
+      error: "Missing GEMINI_API_KEY. Set it in your environment.",
     });
     return;
   }
@@ -45,43 +40,52 @@ app.post("/api/extract", upload.single("receipt"), async (req, res) => {
 
   try {
     const base64Image = req.file.buffer.toString("base64");
-    const mediaType = req.file.mimetype;
+    const mimeType = req.file.mimetype;
 
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: mediaType,
-                data: base64Image,
-              },
-            },
-            {
-              type: "text",
-              text: `Extract receipt fields from this image and return ONLY a valid JSON object with no markdown, no explanation, no backticks.
+    const prompt = `Extract receipt fields from this image and return ONLY a valid JSON object. No markdown, no explanation, no backticks.
 
 Return exactly this shape:
 {"merchant_name":"...","date":"YYYY-MM-DD","total_amount":0.00,"currency":"USD"}
 
 Rules:
 - date must be ISO 8601 (YYYY-MM-DD) or null if not found
-- total_amount must be a number (float) or null if not found  
+- total_amount must be a number (float) or null if not found
 - currency must be a 3-letter ISO code (USD, MYR, GBP, etc.) inferred from symbols or context
-- merchant_name is the store or business name`,
+- merchant_name is the store or business name`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: prompt },
+                {
+                  inline_data: {
+                    mime_type: mimeType,
+                    data: base64Image,
+                  },
+                },
+              ],
             },
           ],
-        },
-      ],
-    });
+          generationConfig: {
+            temperature: 0,
+          },
+        }),
+      }
+    );
 
-    const text =
-      message.content.find((b) => b.type === "text")?.text || "{}";
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error?.message || "Gemini API error");
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
     const parsed = extractJsonContent(text);
     res.json({ fields: normalizeReceiptFields(parsed) });
   } catch (error) {
