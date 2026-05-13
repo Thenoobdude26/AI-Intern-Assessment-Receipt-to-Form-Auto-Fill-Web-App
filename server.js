@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const multer = require("multer");
 const path = require("path");
@@ -21,14 +22,14 @@ const upload = multer({
   },
 });
 
-const geminiApiKey = process.env.GEMINI_API_KEY;
+const groqApiKey = process.env.GROQ_API_KEY;
 
 app.use(express.static(path.join(__dirname, "public")));
 
 app.post("/api/extract", upload.single("receipt"), async (req, res) => {
-  if (!geminiApiKey) {
+  if (!groqApiKey) {
     res.status(500).json({
-      error: "Missing GEMINI_API_KEY. Set it in your environment.",
+      error: "Missing GROQ_API_KEY. Set it in your environment.",
     });
     return;
   }
@@ -53,39 +54,42 @@ Rules:
 - currency must be a 3-letter ISO code (USD, MYR, GBP, etc.) inferred from symbols or context
 - merchant_name is the store or business name`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: prompt },
-                {
-                  inline_data: {
-                    mime_type: mimeType,
-                    data: base64Image,
-                  },
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${groqApiKey}`,
+      },
+      body: JSON.stringify({
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",
+        temperature: 0,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${mimeType};base64,${base64Image}`,
                 },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0,
+              },
+              {
+                type: "text",
+                text: prompt,
+              },
+            ],
           },
-        }),
-      }
-    );
+        ],
+      }),
+    });
 
     if (!response.ok) {
       const err = await response.json();
-      throw new Error(err.error?.message || "Gemini API error");
+      throw new Error(err.error?.message || "Groq API error");
     }
 
     const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    const text = data.choices?.[0]?.message?.content || "{}";
     const parsed = extractJsonContent(text);
     res.json({ fields: normalizeReceiptFields(parsed) });
   } catch (error) {
